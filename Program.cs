@@ -2,7 +2,7 @@ using System;
 using System.Management;
 using System.Runtime.InteropServices;
 using System.Timers;
-class UserProfileDeletion
+public class UserProfileDeletion
 {
     private const int WTS_CURRENT_SERVER_HANDLE = 0;
     private const int WTS_CURRENT_SESSION = -1;
@@ -39,7 +39,14 @@ class UserProfileDeletion
         public int SessionId;
         public IntPtr pWinStationName;
         public int State;
+
     }
+
+        ;
+    IntPtr serverHandle ;
+    IntPtr pSessionInfo;
+    int sessionCount;
+
     public static void LogOutDisconnectedDomainUsers()
     {
 
@@ -49,7 +56,7 @@ class UserProfileDeletion
 
         try
         {
-            if (serverHandle == IntPtr.Zero)
+            if (UserProfileDeletion.WTS_CURRENT_SERVER_HANDLE == IntPtr.Zero)
             {
                 Console.WriteLine("Failed to open server handle.");
                 return;
@@ -63,24 +70,17 @@ class UserProfileDeletion
 
                 for (int i = 0; i < sessionCount; i++)
                 {
-                    // Marshal data to WTS_SESSION_INFO structure
+
+                    
                     WTS_SESSION_INFO sessionInfo = Marshal.PtrToStructure<WTS_SESSION_INFO>(currentSession);
 
-                    // Check if session is in a disconnected state
+                    
                     if (sessionInfo.State != WTS_ACTIVE && sessionInfo.SessionId != 0)
                     {
                         Console.WriteLine($"Logging out disconnected session ID: {sessionInfo.SessionId}");
                         // Log off the disconnected session
-                        bool result = WTSLogoffSession(serverHandle, sessionInfo.SessionId, false);
-                        if (!result)
-                        {
-                            int error = Marshal.GetLastWin32Error();
-                            Console.WriteLine($"Failed to log off session ID {sessionInfo.SessionId}, error code: {error}");
-                        }
-                        else
-                        {
-                            Console.WriteLine($"Successfully logged off session ID: {sessionInfo.SessionId}");
-                        }
+                        bool result = WTSLogoffSession(serverHandle, sessionInfo.SessionId, true);
+
                     }
 
                     // Move pointer to the next session info structure
@@ -95,23 +95,30 @@ class UserProfileDeletion
         catch (Exception ex)
         {
             Console.WriteLine($"An error occurred: {ex.Message}");
-        }
-        finally
-        {
-            // Free memory and close server handle
-            if (pSessionInfo != IntPtr.Zero) WTSFreeMemory(pSessionInfo);
-            if (serverHandle != IntPtr.Zero) WTSCloseServer(serverHandle);
+
         }
 
-        DeleteUserProfiles();
-
-    }
-    static void DeleteUserProfiles()
-    {
+        if (pSessionInfo != IntPtr.Zero) WTSFreeMemory(pSessionInfo);
+        if (serverHandle != IntPtr.Zero) WTSCloseServer(serverHandle);
 
         try
         {
-            // Search for all user profiles
+            
+
+            DeleteUserProfiles();
+        }
+
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+    }
+    static void DeleteUserProfiles()
+    {
+        
+        try
+        {
+            
             ManagementObjectSearcher searcher = new ManagementObjectSearcher("SELECT * FROM Win32_UserProfile");
 
             foreach (ManagementObject profile in searcher.Get())
@@ -120,19 +127,19 @@ class UserProfileDeletion
                 string localPath = profile["LocalPath"]?.ToString();
                 bool isLoaded = (bool)profile["Loaded"];
 
-                // Skip if profile is currently loaded
+                
                 if (isLoaded)
                 {
                     Console.WriteLine($"Skipping active profile for SID: {sid}");
                     continue;
                 }
 
-                // Exclude system profiles, Administrator, and special user "User"
+                
                 if (sid == null ||
-                    sid.StartsWith("S-1-5-18") || // Local System
-                    sid.StartsWith("S-1-5-19") || // Local Service
-                    sid.StartsWith("S-1-5-20") || // Network Service
-                    sid.EndsWith("-500") ||        // Built-in Administrator
+                    sid.StartsWith("S-1-5-18") || 
+                    sid.StartsWith("S-1-5-19") || 
+                    sid.StartsWith("S-1-5-20") || 
+                    sid.EndsWith("-500") ||        
                     localPath?.EndsWith("User", StringComparison.OrdinalIgnoreCase) == true) // Exclude "User" profile
                 {
                     Console.WriteLine($"Skipping excluded or special profile: {localPath} (SID: {sid})");
@@ -155,22 +162,25 @@ class UserProfileDeletion
         {
             Console.WriteLine($"Error accessing user profiles: {ex.Message}");
         }
+        
+
     }
 
-    static void Main(string[] args)
+    static void Main()
     {
-
+       
 
 
         LogOutDisconnectedDomainUsers();
 
+       
     }
-
-
-
-
-
-
-
-
 }
+
+
+
+
+
+
+
+
